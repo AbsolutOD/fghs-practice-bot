@@ -87,3 +87,23 @@ export function toRows(events: ParsedEvent[], now = new Date()): Row[] {
  */
 export const prune = (db: Database, now = new Date()) =>
   db.run("DELETE FROM events WHERE last_date < ?", [todayISO(now)]);
+
+/**
+ * Prune, read the previous snapshot, install the new one — one transaction, so a
+ * run that dies halfway is a no-op and the next run diffs against the same rows
+ * it would have (#9). Stored rows are read *after* the prune, so a finished event
+ * is never reported removed. Lives here, not in the CLI, because it is the only
+ * other place that knows the column list.
+ */
+export const swap = (db: Database, page: Row[]): Row[] =>
+  db.transaction(() => {
+    prune(db);
+    const stored = db.query("SELECT * FROM events").all() as Row[];
+    db.run("DELETE FROM events");
+    const insert = db.prepare(
+      "INSERT INTO events (date_token, n, first_date, last_date, type, raw) VALUES (?, ?, ?, ?, ?, ?)",
+    );
+    for (const r of page)
+      insert.run(r.date_token, r.n, r.first_date, r.last_date, r.type, r.raw);
+    return stored;
+  })();

@@ -1,6 +1,8 @@
 {
   "name": "fghs-practice-bot",
+  "version": "0.1.0",
   "module": "index.ts",
+  "bin": { "fghs": "index.ts" },
   "type": "module",
   "private": true,
   "devDependencies": {
